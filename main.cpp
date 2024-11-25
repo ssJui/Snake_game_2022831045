@@ -9,7 +9,7 @@ const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
 const int GRID_SIZE = 20;
 const int INITIAL_SNAKE_SIZE = 4;
-const int MOVE_INTERVAL = 150;
+const int MOVE_INTERVAL = 200;
 
 SDL_Window* gWindow = nullptr;
 SDL_Renderer* gRenderer = nullptr;
@@ -17,7 +17,7 @@ SDL_Texture* gBackgroundTexture = nullptr;
 SDL_Texture* gSnakeHeadTexture = nullptr;
 SDL_Texture* gSnakeBodyTexture = nullptr;
 SDL_Texture* gSnakeTailTexture = nullptr;
-SDL_Texture* gFruitTexture = nullptr; // Texture for the fruit
+SDL_Texture* gFruitTexture = nullptr; 
 
 SDL_Texture* gSnakeTailTextureUp = nullptr;
 SDL_Texture* gSnakeTailTextureDown = nullptr;
@@ -27,6 +27,7 @@ SDL_Texture* gSnakeTailTextureRight = nullptr;
 SDL_Texture* gLogoTexture = nullptr;
 
 TTF_Font* gFont = nullptr;
+
 int score = 0;
 
 struct Point {
@@ -120,6 +121,39 @@ private:
     Point location;
 };
 
+class BonusFood {
+public:
+    BonusFood() : visible(false), spawnTime(0), duration(5000) {} // Bonus lasts 5 seconds
+
+    void respawn() {
+        location.x = rand() % (SCREEN_WIDTH / GRID_SIZE);
+        location.y = rand() % (SCREEN_HEIGHT / GRID_SIZE);
+        visible = true;
+        spawnTime = SDL_GetTicks(); // Record spawn time
+    }
+
+    void hide() {
+        visible = false;
+    }
+
+    bool isVisible() const {
+        return visible;
+    }
+
+    bool isExpired() const {
+        return visible && (SDL_GetTicks() - spawnTime >= duration);
+    }
+
+    Point getLocation() const {
+        return location;
+    }
+
+private:
+    Point location;
+    bool visible;
+    Uint32 spawnTime;
+    Uint32 duration; // Duration in milliseconds
+};
 
 bool init() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -247,7 +281,7 @@ void close() {
     SDL_DestroyTexture(gSnakeTailTextureLeft);
     SDL_DestroyTexture(gSnakeTailTextureRight);
 
-    SDL_DestroyTexture(gFruitTexture); // Destroy fruit texture
+    SDL_DestroyTexture(gFruitTexture); 
 
     TTF_CloseFont(gFont);
     gFont = nullptr;
@@ -349,6 +383,18 @@ void drawFood(const Food& food) {
     SDL_RenderCopy(gRenderer, gFruitTexture, nullptr, &rect);
 }
 
+void drawBonusFood(const BonusFood& bonusFood) {
+    if (bonusFood.isVisible()) {
+        SDL_Rect rect = { 
+            bonusFood.getLocation().x * GRID_SIZE - GRID_SIZE / 4, 
+            bonusFood.getLocation().y * GRID_SIZE - GRID_SIZE / 4, 
+            GRID_SIZE + GRID_SIZE / 2, 
+            GRID_SIZE + GRID_SIZE / 2 
+        };
+        SDL_RenderCopy(gRenderer, gFruitTexture, nullptr, &rect); // Use a special texture for bonus food if desired
+    }
+}
+
 void renderText(const std::string& message, int x, int y) {
     SDL_Color color = {0, 0, 0};
     SDL_Surface* surface = TTF_RenderText_Solid(gFont, message.c_str(), color);
@@ -399,6 +445,10 @@ int main(int argc, char* args[]) {
     SDL_Event e;
 
     GameState gameState = GameState::WELCOME_SCREEN;
+
+    BonusFood bonusFood;
+    Uint32 lastBonusSpawn = 0;
+
 
     while (!quit) {
         while (SDL_PollEvent(&e) != 0) {
@@ -464,6 +514,22 @@ int main(int argc, char* args[]) {
                                     score++;
                                 }
 
+                                if (SDL_GetTicks() - lastBonusSpawn > 15000) { // Spawn every 15 seconds
+                                    bonusFood.respawn();
+                                    lastBonusSpawn = SDL_GetTicks();
+                                }
+
+                                // Hide the bonus food if it expires
+                                if (bonusFood.isExpired()) {
+                                    bonusFood.hide();
+                                }
+
+                                if (bonusFood.isVisible() && head.x == bonusFood.getLocation().x && head.y == bonusFood.getLocation().y) {
+                                     snake.grow();
+                                     score += 5; // Bonus points
+                                     bonusFood.hide(); // Hide the bonus food after being eaten
+                                }
+
                                 lastMove = SDL_GetTicks();
                             }
 
@@ -473,6 +539,7 @@ int main(int argc, char* args[]) {
                             drawBackground(); // Draw the background image first
                             drawSnake(snake.getBody());
                             drawFood(food);
+                            drawBonusFood(bonusFood);
                             renderText("Score: " + std::to_string(score), 10, 10);
 
                             SDL_RenderPresent(gRenderer);
