@@ -490,7 +490,7 @@ int main(int argc, char* args[]) {
                                     }
                                 }
                             }
-
+                            
                             if (SDL_GetTicks() - lastMove >= MOVE_INTERVAL) {
                                 snake.move();
                                 if (snake.collidesWithItself()) {
@@ -558,7 +558,7 @@ int main(int argc, char* args[]) {
         }
 
         if (gameState == GameState::WELCOME_SCREEN) {
-            renderWelcomeScreen();
+            renderWelcomeScreen();           
         }
     }
 
